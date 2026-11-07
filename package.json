@@ -4,6 +4,9 @@
   "description": "B 站学习台 · DeepSeek Harness 面板插件：聚合 B 站学习视频，按目录专注学习、记笔记并导出、AI 快速查概念、学习奖励机制。",
   "type": "module",
   "main": "./index.js",
+  "scripts": {
+    "test": "node --test"
+  },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",

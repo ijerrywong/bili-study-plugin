@@ -96,7 +96,19 @@ async function loadState() {
 }
 function saveState(immediate) {
   if (saveTimer) clearTimeout(saveTimer)
-  const run = () => fetch('/bili-study/api/state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ state: STATE }) }).catch(() => {})
+  const run = async () => {
+    try {
+      const r = await fetch('/bili-study/api/state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ state: STATE, rev: STATE.rev ?? null }) })
+      if (r.status === 409) {
+        // 服务端状态已被其他操作（如 AI 写目录）更新，刷新到最新，避免静默覆盖
+        await loadState()
+        toast('数据已被其他操作更新，已为你刷新到最新状态（本次未保存的改动可能丢失，请重试）')
+        return
+      }
+      const j = await r.json().catch(() => ({}))
+      if (j && j.rev != null) STATE.rev = j.rev
+    } catch (e) { /* 忽略网络错误，下次保存重试 */ }
+  }
   if (immediate) return run()
   saveTimer = setTimeout(run, 400)
 }

@@ -10,7 +10,7 @@ import { createReadStream, existsSync, realpathSync, statSync } from 'node:fs'
 import { extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fetchFromUrl } from './lib/bili.js'
-import { readState, writeState } from './lib/store.js'
+import { readState, writeState, withLock } from './lib/store.js'
 import { TOOLS } from './lib/tools.js'
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url))
@@ -368,10 +368,23 @@ export function apply(ctx) {
         if (rest === '/api/state' && req.method === 'POST') {
           try {
             const body = await readJson(req)
-            const state = body && body.state ? body.state : body
-            if (!state || typeof state !== 'object') return sendJson(res, 400, { ok: false, error: '状态格式不对' })
-            writeState(state)
-            return sendJson(res, 200, { ok: true })
+            const incoming = body && body.state ? body.state : body
+            const clientRev = body && typeof body.rev === 'number' ? body.rev : null
+            if (!incoming || typeof incoming !== 'object') return sendJson(res, 400, { ok: false, error: '状态格式不对' })
+            const result = await withLock(async () => {
+              const cur = readState()
+              // 乐观并发：客户端基于某个 rev 修改；若期间已被其他操作（如 AI 写目录）改写，则冲突，
+              // 让前端刷新合并，而不是「后写覆盖先写」导致静默丢数据。
+              if (clientRev != null && clientRev !== cur.rev) {
+                return { conflict: true, state: cur }
+              }
+              const merged = { ...cur, ...incoming }
+              delete merged.rev // rev 由 writeState 统一管理
+              writeState(merged)
+              return { ok: true, rev: merged.rev }
+            })
+            if (result.conflict) return sendJson(res, 409, { ok: false, conflict: true, state: result.state })
+            return sendJson(res, 200, { ok: true, rev: result.rev })
           } catch (e) {
             return sendJson(res, e.status || 400, { ok: false, error: e.message })
           }
