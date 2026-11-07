@@ -13,6 +13,8 @@
 
 要求 DeepSeek Harness **0.2.x**（本插件声明 `engines.dsh: >=0.2.1-rc.5 <0.3.0`）。
 
+> ⚠️ 抓取功能依赖 B 站公开接口（含 WBI 签名）。B 站调整风控策略或接口时，抓取可能暂时失效，且不会自动恢复；命中风控 `-352` 时会自动重试（指数退避，最多 3 次）。
+
 ### 方式一：npm（推荐）
 
 已在 npm 发布：<https://www.npmjs.com/package/dsh-bili-study>
