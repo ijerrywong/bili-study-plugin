@@ -76,6 +76,7 @@ let expandedSrc = new Set()    // UP主 区展开的来源（'' 表示未分类�
 let upOpen = false             // UP主 区是否展开（默认收起）
 let classifyRun = null         // 正在进行的一轮智能分类（停止时置 aborted）
 const CLASSIFY_BATCH = 30      // 每次请求模型的视频数
+const POINTS_PER_LEVEL = 25     // 每 25 分升一级（sqrt 让前期升级更快），等级从 1 起算
 
 const defaultState = () => ({ version: 1, catalog: [], videos: {}, sources: [], notes: {}, progress: {}, links: {}, rewards: { points: 0, streak: 0, best: 0, lastActive: '', badges: [], log: [] }, lastWatch: null })
 
@@ -1706,7 +1707,7 @@ function exportNotes() {
 function openRewards() {
   const r = STATE.rewards
   const defs = badgeDefs()
-  const level = Math.floor(Math.sqrt((r.points || 0) / 25)) + 1
+  const level = Math.floor(Math.sqrt((r.points || 0) / POINTS_PER_LEVEL)) + 1
   const have = new Set(r.badges || [])
   const log = (r.log || []).slice(0, 8).map((l) => `<div class="logline">${l.label} <span style="float:right">+${l.delta}</span></div>`).join('')
   openModal(`<div class="modal">

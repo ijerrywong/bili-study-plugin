@@ -26,6 +26,10 @@ const MIME = {
 export const name = 'bili-study'
 export const inject = ['webServer', 'tools', 'llm']
 
+// LLM 兜底模型：读不到 dsh 默认模型时使用，可用环境变量覆盖（避免写死魔法字符串）。
+const FALLBACK_PROVIDER = process.env.BILI_FALLBACK_PROVIDER || 'deepseek-official'
+const FALLBACK_MODEL = process.env.BILI_FALLBACK_MODEL || 'deepseek-v4-pro'
+
 function sendJson(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
   res.end(JSON.stringify(body))
@@ -47,7 +51,14 @@ function safeFile(rel) {
 function serveFile(req, res, file) {
   res.writeHead(200, { 'content-type': MIME[extname(file).toLowerCase()] || 'application/octet-stream', 'cache-control': 'no-cache' })
   if (req.method === 'HEAD') return res.end()
-  createReadStream(file).pipe(res)
+  const stream = createReadStream(file)
+  // 流出错时兜底，避免请求长时间挂起
+  stream.on('error', (e) => {
+    if (res.headersSent) { res.destroy(); return }
+    res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
+    res.end('read error')
+  })
+  stream.pipe(res)
 }
 // 只接受同源 JSON POST。
 function readJson(req, max = 4 * 1024 * 1024) {
@@ -66,8 +77,8 @@ function readJson(req, max = 4 * 1024 * 1024) {
 
 // ---- 面板内调 LLM（概念速查 / 智能分类共用：跟随 dsh 默认模型）----
 async function streamLlm(ctx, { system, prompt, maxTokens = 1200, temperature = 0.6, timeoutMs = 90000 }) {
-  let provider = 'deepseek-official'
-  let model = 'deepseek-v4-pro'
+  let provider = FALLBACK_PROVIDER
+  let model = FALLBACK_MODEL
   let reasoningEffort
   try {
     const sel = ctx.get('agentDefaultModel')?.currentSelection?.()
